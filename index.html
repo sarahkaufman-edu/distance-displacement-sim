@@ -3,212 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Physics Sim: Motion & Graphing</title>
+    <title>Physics Lab: Motion & Graphing</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background-color: #1a1a2e; text-align: center; margin: 0; color: white; overflow-x: hidden; }
-        #nav { background: #16213e; padding: 15px; display: flex; justify-content: center; gap: 15px; border-bottom: 2px solid #0f3460; }
-        .nav-btn { padding: 10px 20px; cursor: pointer; border: 2px solid #3498db; background: transparent; color: white; border-radius: 5px; font-weight: bold; transition: 0.3s; }
-        .nav-btn.active { background: #3498db; box-shadow: 0 0 10px #3498db; }
+        :root {
+            --bg-dark: #f8f9fa;
+            --accent: #2c3e50;
+            --dist-color: #d35400;
+            --disp-color: #2980b9;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #e9ecef; text-align: center; margin: 0; color: var(--accent); }
+        
+        #nav { background: var(--accent); padding: 15px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .nav-btn { padding: 10px 18px; cursor: pointer; border: 2px solid #fff; background: transparent; color: white; border-radius: 5px; font-weight: bold; transition: 0.2s; }
+        .nav-btn:hover { background: rgba(255,255,255,0.1); }
+        .nav-btn.active { background: #fff; color: var(--accent); }
 
         .main-layout { display: flex; flex-direction: column; align-items: center; padding: 20px; gap: 20px; }
 
-        /* Sim Box */
+        /* The Simulation Grid */
         #simulation-container { 
-            position: relative; width: 85vw; height: 45vh; 
-            border: 3px solid #e94560; border-radius: 10px; overflow: hidden;
-            background-size: cover; background-position: center; cursor: crosshair;
+            position: relative; width: 90vw; height: 40vh; 
+            background-color: white;
+            /* Creates a physics grid background */
+            background-image: linear-gradient(#eee 1px, transparent 1px), linear-gradient(90deg, #eee 1px, transparent 1px);
+            background-size: 40px 40px;
+            border: 2px solid var(--accent); border-radius: 8px; overflow: hidden; cursor: crosshair;
         }
         canvas { position: absolute; top: 0; left: 0; }
         #vehicle { position: absolute; font-size: 45px; transform: translate(-50%, -50%); pointer-events: none; z-index: 10; }
 
-        /* Graph Box */
+        /* The Graph Area */
         #graph-container { 
-            width: 85vw; height: 30vh; background: #ffffff; border-radius: 10px; 
-            padding: 10px; position: relative; border: 3px solid #0f3460;
+            width: 90vw; height: 35vh; background: white; border-radius: 8px; 
+            padding: 10px; position: relative; border: 2px solid var(--accent);
         }
 
         #ui-overlay { 
             position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.9); 
-            padding: 12px; border-radius: 8px; text-align: left; color: #1a1a2e; z-index: 20; font-size: 0.9rem;
+            padding: 12px; border-radius: 6px; text-align: left; color: var(--accent); z-index: 20; border: 1px solid #ccc; font-size: 0.9rem;
         }
-        .stat { font-weight: bold; margin-bottom: 3px; }
-        button#reset-btn { padding: 8px 15px; background: #e94560; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 5px; }
+        .stat { font-weight: bold; margin-bottom: 2px; }
+        #reset-btn { width: 100%; padding: 8px; background: #c0392b; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 5px; }
     </style>
 </head>
 <body>
 
 <div id="nav">
-    <button class="nav-btn active" onclick="setMode('plane')">✈️ Airplane Mode</button>
-    <button class="nav-btn" onclick="setMode('car')">🚗 Car Mode</button>
-</div>
-
-<div class="main-layout">
-    <div id="simulation-container">
-        <canvas id="pathCanvas"></canvas>
-        <div id="vehicle">✈️</div>
-        
-        <div id="ui-overlay">
-            <div id="mode-title" style="font-weight: 900; border-bottom: 1px solid #ccc; margin-bottom: 5px;">Airplane Mission</div>
-            <div class="stat" style="color: #d35400;">Distance: <span id="distVal">0</span> m</div>
-            <div class="stat" style="color: #2980b9;">Displacement: <span id="dispVal">0</span> m</div>
-            <div class="stat">Time: <span id="timeVal">0.0</span> s</div>
-            <button id="reset-btn" onclick="resetSim()">Reset Mission</button>
-        </div>
-    </div>
-
-    <div id="graph-container">
-        <canvas id="graphCanvas"></canvas>
-    </div>
-</div>
-
-<script>
-    const container = document.getElementById('simulation-container');
-    const pathCanvas = document.getElementById('pathCanvas');
-    const graphCanvas = document.getElementById('graphCanvas');
-    const pCtx = pathCanvas.getContext('2d');
-    const gCtx = graphCanvas.getContext('2d');
-    const vehicle = document.getElementById('vehicle');
-    
-    const modes = {
-        plane: { title: "Airplane Mission", emoji: "✈️", bg: "url('https://images.unsplash.com/photo-1506012733851-bb9215d3974d?auto=format&fit=crop&w=1200')" },
-        car: { title: "Car Mission", emoji: "🚗", bg: "url('https://images.unsplash.com/photo-1526649661456-89c7ed4d00b8?auto=format&fit=crop&w=1200')" }
-    };
-
-    let currentMode = 'plane';
-    let isDragging = false;
-    let path = []; // Stores {time, dist, disp}
-    let startX, startY, curX, curY, totalDist = 0, startTime;
-
-    function setMode(mode) {
-        currentMode = mode;
-        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-        if(event) event.target.classList.add('active');
-        container.style.backgroundImage = modes[mode].bg;
-        vehicle.innerText = modes[mode].emoji;
-        document.getElementById('mode-title').innerText = modes[mode].title;
-        resetSim();
-    }
-
-    function resize() {
-        pathCanvas.width = container.clientWidth;
-        pathCanvas.height = container.clientHeight;
-        graphCanvas.width = document.getElementById('graph-container').clientWidth;
-        graphCanvas.height = document.getElementById('graph-container').clientHeight;
-        drawGraphStatic();
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    container.addEventListener('mousedown', start);
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseup', () => isDragging = false);
-
-    function start(e) {
-        const rect = container.getBoundingClientRect();
-        startX = e.clientX - rect.left;
-        startY = e.clientY - rect.top;
-        curX = startX; curY = startY;
-        totalDist = 0;
-        path = [{t: 0, d: 0, disp: 0}];
-        isDragging = true;
-        startTime = Date.now();
-    }
-
-    function move(e) {
-        if (!isDragging) return;
-        const rect = container.getBoundingClientRect();
-        const nx = e.clientX - rect.left;
-        const ny = e.clientY - rect.top;
-
-        const seg = Math.sqrt(Math.pow(nx - curX, 2) + Math.pow(ny - curY, 2));
-        totalDist += seg;
-        curX = nx; curY = ny;
-
-        const time = (Date.now() - startTime) / 1000;
-        const disp = Math.sqrt(Math.pow(curX - startX, 2) + Math.pow(curY - startY, 2));
-
-        path.push({t: time, d: totalDist, disp: disp});
-        updateUI(time, totalDist, disp);
-        drawSim();
-        drawGraph();
-    }
-
-    function updateUI(t, d, disp) {
-        vehicle.style.left = curX + 'px';
-        vehicle.style.top = curY + 'px';
-        document.getElementById('distVal').innerText = Math.round(d);
-        document.getElementById('dispVal').innerText = Math.round(disp);
-        document.getElementById('timeVal').innerText = t.toFixed(1);
-    }
-
-    function drawSim() {
-        pCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
-        // Draw Origin point
-        pCtx.fillStyle = "red";
-        pCtx.beginPath(); pCtx.arc(startX, startY, 5, 0, Math.PI*2); pCtx.fill();
-
-        // Displacement line (Blue)
-        pCtx.setLineDash([]); pCtx.strokeStyle = '#2980b9'; pCtx.lineWidth = 4;
-        pCtx.beginPath(); pCtx.moveTo(startX, startY); pCtx.lineTo(curX, curY); pCtx.stroke();
-    }
-
-    function drawGraphStatic() {
-        gCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
-        const margin = 40;
-        gCtx.strokeStyle = "#333"; gCtx.lineWidth = 2;
-        // Axes
-        gCtx.beginPath();
-        gCtx.moveTo(margin, 10); gCtx.lineTo(margin, graphCanvas.height - margin); // Y
-        gCtx.lineTo(graphCanvas.width - 10, graphCanvas.height - margin); // X
-        gCtx.stroke();
-        // Labels
-        gCtx.fillStyle = "#333"; gCtx.font = "bold 12px Arial";
-        gCtx.fillText("Position (m)", 5, 20);
-        gCtx.fillText("Time (s)", graphCanvas.width - 60, graphCanvas.height - 10);
-        gCtx.fillText("(0,0)", 10, graphCanvas.height - 25);
-    }
-
-    function drawGraph() {
-        drawGraphStatic();
-        if (path.length < 2) return;
-        const margin = 40;
-        const plotW = graphCanvas.width - margin - 20;
-        const plotH = graphCanvas.height - margin - 20;
-
-        const maxT = Math.max(10, path[path.length-1].t);
-        const maxD = Math.max(500, totalDist);
-
-        const getX = (t) => margin + (t / maxT) * plotW;
-        const getY = (v) => (graphCanvas.height - margin) - (v / maxD) * plotH;
-
-        // Draw Distance (Orange)
-        gCtx.strokeStyle = "#d35400"; gCtx.lineWidth = 2;
-        gCtx.beginPath(); gCtx.moveTo(getX(path[0].t), getY(path[0].d));
-        path.forEach(p => gCtx.lineTo(getX(p.t), getY(p.d)));
-        gCtx.stroke();
-
-        // Draw Displacement (Blue)
-        gCtx.strokeStyle = "#2980b9";
-        gCtx.beginPath(); gCtx.moveTo(getX(path[0].t), getY(path[0].disp));
-        path.forEach(p => gCtx.lineTo(getX(p.t), getY(p.disp)));
-        gCtx.stroke();
-        
-        // Legend
-        gCtx.fillStyle = "#d35400"; gCtx.fillText("— Distance", 100, 20);
-        gCtx.fillStyle = "#2980b9"; gCtx.fillText("— Displacement", 200, 20);
-    }
-
-    function resetSim() {
-        pCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
-        path = []; totalDist = 0;
-        document.getElementById('distVal').innerText = "0";
-        document.getElementById('dispVal').innerText = "0";
-        document.getElementById('timeVal').innerText = "0.0";
-        drawGraphStatic();
-        vehicle.style.left = '50%'; vehicle.style.top = '50%';
-    }
-    
-    setMode('plane');
-</script>
-</body>
-</html>
+    <button class="nav-btn active" onclick="setMode('plane')">✈️ Plane</button>
+    <button class="nav-btn" onclick="setMode('car')">🚗 Car</button>
+    <button class="nav-btn" onclick="setMode('heli')">🚁 Heli</button>
+    <button class
