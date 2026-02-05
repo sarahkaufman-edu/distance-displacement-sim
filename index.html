@@ -5,35 +5,507 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Physics Lab: Motion Diagrams</title>
   <style>
-    :root {
-      --bg-dark: #f8f9fa;
-      --accent: #2c3e50;
-      --dist-color: #d35400;
-      --disp-color: #2980b9;
+    :root{
+      --accent:#2c3e50;
+      --dist-color:#d35400;
+      --disp-color:#2980b9;
     }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #e9ecef;
-      text-align: center;
-      margin: 0;
-      color: var(--accent);
+    body{
+      font-family:'Segoe UI',sans-serif;
+      background:#e9ecef;
+      margin:0;
+      color:var(--accent);
+      text-align:center;
+    }
+    #nav{
+      background:var(--accent);
+      padding:12px;
+      display:flex;
+      justify-content:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .nav-btn{
+      padding:8px 15px;
+      cursor:pointer;
+      border:2px solid #fff;
+      background:transparent;
+      color:#fff;
+      border-radius:5px;
+      font-weight:bold;
+    }
+    .nav-btn.active{ background:#fff; color:var(--accent); }
+
+    .main-layout{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      padding:15px;
+      gap:15px;
     }
 
-    #nav {
-      background: var(--accent);
-      padding: 12px;
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
+    #simulation-container{
+      position:relative;
+      width:90vw;
+      height:35vh;
+      background:#fff;
+      background-image:
+        linear-gradient(#eee 1px, transparent 1px),
+        linear-gradient(90deg, #eee 1px, transparent 1px);
+      background-size:40px 40px;
+      border:2px solid var(--accent);
+      border-radius:8px;
+      overflow:hidden;
+      cursor:crosshair;
     }
-    .nav-btn {
-      padding: 8px 15px;
-      cursor: pointer;
-      border: 2px solid #fff;
-      background: transparent;
-      color: white;
-      border-radius: 5px;
-      font-weight: bold;
+
+    canvas{ position:absolute; top:0; left:0; }
+
+    #vehicle{
+      position:absolute;
+      font-size:45px;
+      transform:translate(-50%,-50%);
+      pointer-events:none;
+      z-index:10;
     }
-    .nav-b
+    #vehicle.flipped{
+      transform:translate(-50%,-50%) scaleX(-1);
+    }
+
+    #graph-container{
+      width:90vw;
+      height:30vh;
+      background:#fff;
+      border-radius:8px;
+      padding:10px;
+      border:2px solid var(--accent);
+      position:relative;
+    }
+
+    #ui-overlay{
+      position:absolute;
+      top:10px;
+      left:10px;
+      background:rgba(255,255,255,0.95);
+      padding:10px;
+      border-radius:6px;
+      text-align:left;
+      z-index:20;
+      border:1px solid #ccc;
+      font-size:0.85rem;
+      width:210px;
+    }
+    .stat{ font-weight:bold; margin-bottom:2px; }
+    #reset-btn{
+      width:100%;
+      padding:6px;
+      background:#c0392b;
+      color:#fff;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+      margin-top:5px;
+    }
+
+    /* Shows errors ON the page if something breaks */
+    #errorBanner{
+      display:none;
+      margin:12px auto 0;
+      width:min(900px, 92vw);
+      background:#ffe9e9;
+      border:2px solid #cc0000;
+      color:#660000;
+      padding:10px 12px;
+      border-radius:10px;
+      text-align:left;
+      white-space:pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:13px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="nav">
+    <button class="nav-btn active" onclick="setMode('plane', this)">✈️ Plane</button>
+    <button class="nav-btn" onclick="setMode('car', this)">🚗 Car</button>
+    <button class="nav-btn" onclick="setMode('heli', this)">🚁 Heli</button>
+    <button class="nav-btn" onclick="setMode('person', this)">🚶 Person</button>
+  </div>
+
+  <div id="errorBanner"></div>
+
+  <div class="main-layout">
+    <div id="simulation-container">
+      <canvas id="pathCanvas"></canvas>
+      <div id="vehicle">✈️</div>
+
+      <div id="ui-overlay">
+        <div id="mode-title" style="font-weight:900;border-bottom:1px solid #ccc;margin-bottom:5px;">
+          Airplane Mode
+        </div>
+
+        <div class="stat" style="color:var(--dist-color);">Distance: <span id="distVal">0</span> m</div>
+        <div class="stat" style="color:var(--disp-color);">Displacement: <span id="dispVal">0</span> m</div>
+        <div class="stat">Time: <span id="timeVal">0.0</span> s</div>
+        <hr>
+        <div class="stat" style="color:var(--dist-color);">Speed (Slope): <span id="speedSlope">0.0</span> m/s</div>
+        <div class="stat" style="color:var(--disp-color);">Velocity (Slope): <span id="velSlope">0.0</span> m/s</div>
+        <div style="font-size:0.7rem;color:#666;margin-top:5px;">*Ghosts appear every 1.0s</div>
+        <button id="reset-btn" onclick="resetSim()">Clear Data</button>
+      </div>
+    </div>
+
+    <div id="graph-container">
+      <canvas id="graphCanvas"></canvas>
+    </div>
+  </div>
+
+<script>
+(function () {
+  // --------- Error banner so page never "mysteriously goes blank" ----------
+  const errorBanner = document.getElementById('errorBanner');
+  window.addEventListener('error', (e) => {
+    errorBanner.style.display = 'block';
+    errorBanner.textContent =
+      "JavaScript error:\n" +
+      (e.message || "Unknown error") + "\n\n" +
+      (e.filename ? (e.filename + ":" + e.lineno + ":" + e.colno) : "") +
+      (e.error && e.error.stack ? ("\n\nStack:\n" + e.error.stack) : "");
+  });
+
+  // --------- DOM refs ----------
+  const container = document.getElementById('simulation-container');
+  const pathCanvas = document.getElementById('pathCanvas');
+  const graphCanvas = document.getElementById('graphCanvas');
+  const pCtx = pathCanvas.getContext('2d');
+  const gCtx = graphCanvas.getContext('2d');
+  const vehicle = document.getElementById('vehicle');
+
+  const distVal = document.getElementById('distVal');
+  const dispVal = document.getElementById('dispVal');
+  const timeVal = document.getElementById('timeVal');
+  const speedSlopeEl = document.getElementById('speedSlope');
+  const velSlopeEl = document.getElementById('velSlope');
+  const modeTitle = document.getElementById('mode-title');
+
+  const modes = {
+    plane:  { title:"Airplane Mode",   emoji:"✈️", flipped:false },
+    car:    { title:"Car Mode",        emoji:"🚗", flipped:true  },
+    heli:   { title:"Helicopter Mode", emoji:"🚁", flipped:true  },
+    person: { title:"Person Mode",     emoji:"🚶", flipped:true  }
+  };
+
+  // --------- state ----------
+  let currentMode = 'plane';
+  let isDragging = false;
+  let path = [];     // [{t,d,disp}]
+  let stamps = [];   // [{x,y}]
+  let startX, startY, curX, curY;
+  let totalDist = 0;
+  let startTime = 0;
+  let lastStampTime = 0;
+
+  // --------- helpers ----------
+  function resize() {
+    pathCanvas.width = container.clientWidth;
+    pathCanvas.height = container.clientHeight;
+
+    const gc = document.getElementById('graph-container');
+    graphCanvas.width = gc.clientWidth;
+    graphCanvas.height = gc.clientHeight;
+
+    drawGraphStatic();
+  }
+  window.addEventListener('resize', resize);
+
+  function setVehicleEmoji() {
+    vehicle.innerText = modes[currentMode].emoji;
+    vehicle.classList.toggle('flipped', modes[currentMode].flipped);
+  }
+
+  // Draw emoji on canvas (ghosts). If flipped, mirror horizontally.
+  function drawEmoji(ctx, emoji, x, y, flipped) {
+    ctx.save();
+    ctx.translate(x, y);
+    if (flipped) ctx.scale(-1, 1);
+    ctx.fillText(emoji, -15, 10);
+    ctx.restore();
+  }
+
+  // Displacement arrow with arrowhead
+  function drawArrow(ctx, x1, y1, x2, y2, color, width) {
+    const headLength = 14;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+
+    // line
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    // arrowhead (only if there's enough length)
+    if (len > 2 * headLength) {
+      const angle = Math.atan2(dy, dx);
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(
+        x2 - headLength * Math.cos(angle - Math.PI / 7),
+        y2 - headLength * Math.sin(angle - Math.PI / 7)
+      );
+      ctx.lineTo(
+        x2 - headLength * Math.cos(angle + Math.PI / 7),
+        y2 - headLength * Math.sin(angle + Math.PI / 7)
+      );
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  // --------- events ----------
+  container.addEventListener('mousedown', start);
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', () => isDragging = false);
+
+  window.setMode = function(mode, btn) {
+    currentMode = mode;
+
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    modeTitle.innerText = modes[currentMode].title;
+    setVehicleEmoji();
+    resetSim();
+  };
+
+  function start(e) {
+    const rect = container.getBoundingClientRect();
+    startX = e.clientX - rect.left;
+    startY = e.clientY - rect.top;
+    curX = startX;
+    curY = startY;
+
+    totalDist = 0;
+    path = [{ t: 0, d: 0, disp: 0 }];
+    stamps = [];
+
+    isDragging = true;
+    startTime = Date.now();
+    lastStampTime = 0;
+
+    updateUI(0, 0, 0);
+    drawSim();
+    drawGraph();
+  }
+
+  function move(e) {
+    if (!isDragging) return;
+
+    const rect = container.getBoundingClientRect();
+    const nx = e.clientX - rect.left;
+    const ny = e.clientY - rect.top;
+
+    const seg = Math.hypot(nx - curX, ny - curY);
+    totalDist += seg;
+    curX = nx;
+    curY = ny;
+
+    const time = (Date.now() - startTime) / 1000;
+    const disp = Math.hypot(curX - startX, curY - startY);
+
+    if (time - lastStampTime >= 1.0) {
+      stamps.push({ x: curX, y: curY });
+      lastStampTime = time;
+    }
+
+    path.push({ t: time, d: totalDist, disp });
+
+    updateUI(time, totalDist, disp);
+    drawSim();
+    drawGraph();
+  }
+
+  function updateUI(t, d, disp) {
+    vehicle.style.left = curX + 'px';
+    vehicle.style.top = curY + 'px';
+
+    distVal.innerText = Math.round(d);
+    dispVal.innerText = Math.round(disp);
+    timeVal.innerText = t.toFixed(1);
+
+    if (path.length > 5) {
+      const p1 = path[path.length - 5];
+      const p2 = path[path.length - 1];
+      const dt = Math.max(0.001, p2.t - p1.t);
+
+      const distSlope = (p2.d - p1.d) / dt;
+      const dispSlope = (p2.disp - p1.disp) / dt;
+
+      speedSlopeEl.innerText = Math.abs(distSlope).toFixed(1);
+      velSlopeEl.innerText = dispSlope.toFixed(1);
+    } else {
+      speedSlopeEl.innerText = "0.0";
+      velSlopeEl.innerText = "0.0";
+    }
+  }
+
+  function drawSim() {
+    pCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
+
+    // ghosts
+    pCtx.globalAlpha = 0.30;
+    pCtx.font = "30px Arial";
+    const flip = modes[currentMode].flipped;
+    const emoji = modes[currentMode].emoji;
+    stamps.forEach(s => drawEmoji(pCtx, emoji, s.x, s.y, flip));
+    pCtx.globalAlpha = 1.0;
+
+    // origin point
+    if (startX !== undefined) {
+      pCtx.fillStyle = "red";
+      pCtx.beginPath();
+      pCtx.arc(startX, startY, 6, 0, Math.PI * 2);
+      pCtx.fill();
+    }
+
+    // displacement arrow with arrowhead
+    if (startX !== undefined && curX !== undefined) {
+      drawArrow(pCtx, startX, startY, curX, curY, "#2980b9", 3);
+    }
+  }
+
+  function drawGraphStatic() {
+    gCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+
+    const margin = 50;
+    gCtx.strokeStyle = "#333";
+    gCtx.lineWidth = 2;
+
+    gCtx.beginPath();
+    gCtx.moveTo(margin, 20);
+    gCtx.lineTo(margin, graphCanvas.height - margin);
+    gCtx.lineTo(graphCanvas.width - 20, graphCanvas.height - margin);
+    gCtx.stroke();
+
+    gCtx.fillStyle = "#333";
+    gCtx.font = "bold 13px sans-serif";
+    gCtx.fillText("Position (m)", 5, 15);
+    gCtx.fillText("Time (s)", graphCanvas.width / 2 - 20, graphCanvas.height - 10);
+  }
+
+  // Legend box in the graph
+  function drawLegend() {
+    const x = graphCanvas.width - 210;
+    const y = 18;
+    const w = 190;
+    const h = 50;
+
+    gCtx.save();
+    gCtx.globalAlpha = 0.92;
+    gCtx.fillStyle = "#ffffff";
+    gCtx.strokeStyle = "#cccccc";
+    gCtx.lineWidth = 1;
+    gCtx.beginPath();
+    gCtx.roundRect ? gCtx.roundRect(x, y, w, h, 8) : gCtx.rect(x, y, w, h);
+    gCtx.fill();
+    gCtx.stroke();
+    gCtx.globalAlpha = 1;
+
+    gCtx.font = "12px sans-serif";
+    gCtx.fillStyle = "#333";
+
+    // Distance line sample
+    gCtx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--dist-color').trim() || "#d35400";
+    gCtx.lineWidth = 3;
+    gCtx.beginPath();
+    gCtx.moveTo(x + 12, y + 18);
+    gCtx.lineTo(x + 42, y + 18);
+    gCtx.stroke();
+    gCtx.fillText("Distance traveled", x + 52, y + 22);
+
+    // Displacement line sample
+    gCtx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--disp-color').trim() || "#2980b9";
+    gCtx.beginPath();
+    gCtx.moveTo(x + 12, y + 36);
+    gCtx.lineTo(x + 42, y + 36);
+    gCtx.stroke();
+    gCtx.fillText("Displacement", x + 52, y + 40);
+
+    gCtx.restore();
+  }
+
+  function drawGraph() {
+    drawGraphStatic();
+    drawLegend();
+
+    if (path.length < 2) return;
+
+    const margin = 50;
+    const plotW = graphCanvas.width - margin - 40;
+    const plotH = graphCanvas.height - margin - 40;
+
+    const maxT = Math.max(10, path[path.length - 1].t);
+    const maxD = Math.max(500, totalDist);
+
+    const getX = (t) => margin + (t / maxT) * plotW;
+    const getY = (v) => (graphCanvas.height - margin) - (v / maxD) * plotH;
+
+    // distance curve
+    gCtx.lineWidth = 2;
+    gCtx.strokeStyle = "#d35400";
+    gCtx.beginPath();
+    gCtx.moveTo(getX(path[0].t), getY(path[0].d));
+    path.forEach(p => gCtx.lineTo(getX(p.t), getY(p.d)));
+    gCtx.stroke();
+
+    // displacement curve
+    gCtx.strokeStyle = "#2980b9";
+    gCtx.beginPath();
+    gCtx.moveTo(getX(path[0].t), getY(path[0].disp));
+    path.forEach(p => gCtx.lineTo(getX(p.t), getY(p.disp)));
+    gCtx.stroke();
+  }
+
+  window.resetSim = function() {
+    isDragging = false;
+    startX = startY = curX = curY = undefined;
+
+    pCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
+    path = [];
+    stamps = [];
+    totalDist = 0;
+
+    distVal.innerText = "0";
+    dispVal.innerText = "0";
+    timeVal.innerText = "0.0";
+    speedSlopeEl.innerText = "0.0";
+    velSlopeEl.innerText = "0.0";
+
+    drawGraphStatic();
+    drawLegend();
+
+    vehicle.style.left = "50%";
+    vehicle.style.top = "50%";
+    setVehicleEmoji();
+  };
+
+  // ---------- init ----------
+  resize();
+  modeTitle.innerText = modes[currentMode].title;
+  setVehicleEmoji();
+  window.resetSim();
+})();
+</script>
+
+</body>
+</html>
