@@ -1,252 +1,192 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Physics Lab: Motion & Slope Analysis</title>
-    <style>
-        :root { --bg-dark: #f8f9fa; --accent: #2c3e50; --dist-color: #d35400; --disp-color: #2980b9; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #e9ecef; text-align: center; margin: 0; color: var(--accent); overflow-x: hidden; }
-        
-        #nav { background: var(--accent); padding: 12px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        .nav-btn { padding: 8px 15px; cursor: pointer; border: 2px solid #fff; background: transparent; color: white; border-radius: 5px; font-weight: bold; transition: 0.2s; }
-        .nav-btn.active { background: #fff; color: var(--accent); }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Physics Lab: Motion Diagrams</title>
+  <style>
+    :root{
+      --bg-dark:#f8f9fa;
+      --accent:#2c3e50;
+      --dist-color:#d35400;
+      --disp-color:#2980b9;
+    }
+    body{font-family:'Segoe UI',sans-serif;background-color:#e9ecef;text-align:center;margin:0;color:var(--accent);}
+    #nav{background:var(--accent);padding:12px;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;}
+    .nav-btn{padding:8px 15px;cursor:pointer;border:2px solid #fff;background:transparent;color:#fff;border-radius:5px;font-weight:bold;}
+    .nav-btn.active{background:#fff;color:var(--accent);}
+    .main-layout{display:flex;flex-direction:column;align-items:center;padding:15px;gap:15px;}
+    #simulation-container{
+      position:relative;width:90vw;height:35vh;background-color:#fff;
+      background-image:linear-gradient(#eee 1px,transparent 1px),linear-gradient(90deg,#eee 1px,transparent 1px);
+      background-size:40px 40px;border:2px solid var(--accent);border-radius:8px;overflow:hidden;cursor:crosshair;
+    }
+    canvas{position:absolute;top:0;left:0;}
+    #vehicle{
+      position:absolute;
+      font-size:45px;
+      transform:translate(-50%,-50%);
+      pointer-events:none;
+      z-index:10;
+    }
+    /* 👇 flipped emoji */
+    .flipped{
+      transform:translate(-50%,-50%) scaleX(-1);
+    }
 
-        .main-layout { display: flex; flex-direction: column; align-items: center; padding: 15px; gap: 15px; }
-
-        /* Simulation Canvas Area */
-        #simulation-container { 
-            position: relative; width: 90vw; height: 35vh; 
-            background-color: white;
-            background-image: linear-gradient(#eee 1px, transparent 1px), linear-gradient(90deg, #eee 1px, transparent 1px);
-            background-size: 40px 40px;
-            border: 2px solid var(--accent); border-radius: 8px; overflow: hidden; cursor: crosshair;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
-        }
-        canvas { position: absolute; top: 0; left: 0; display: block; }
-        #vehicle { position: absolute; font-size: 45px; transform: translate(-50%, -50%); pointer-events: none; z-index: 10; transition: left 0.1s linear, top 0.1s linear; }
-
-        /* Real-time Data Box */
-        #ui-overlay { 
-            position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.95); 
-            padding: 12px; border-radius: 6px; text-align: left; color: var(--accent); z-index: 20; border: 1px solid #ccc; font-size: 0.85rem; width: 190px;
-            pointer-events: auto; box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-        }
-        .stat { font-weight: bold; margin-bottom: 2px; }
-        hr { border: 0; border-top: 1px solid #ddd; margin: 8px 0; }
-        #reset-btn { width: 100%; padding: 8px; background: #c0392b; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-
-        /* Graphing Canvas Area */
-        #graph-container { 
-            width: 90vw; height: 32vh; background: white; border-radius: 8px; 
-            padding: 10px; position: relative; border: 2px solid var(--accent);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-    </style>
+    #graph-container{width:90vw;height:30vh;background:#fff;border-radius:8px;padding:10px;position:relative;border:2px solid var(--accent);}
+    #ui-overlay{
+      position:absolute;top:10px;left:10px;background:rgba(255,255,255,.95);
+      padding:10px;border-radius:6px;text-align:left;color:var(--accent);z-index:20;border:1px solid #ccc;
+      font-size:.85rem;width:200px;
+    }
+    .stat{font-weight:bold;margin-bottom:2px;}
+    #reset-btn{width:100%;padding:6px;background:#c0392b;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-top:5px;}
+  </style>
 </head>
 <body>
 
 <div id="nav">
-    <button class="nav-btn active" onclick="setMode('plane', this)">✈️ Plane</button>
-    <button class="nav-btn" onclick="setMode('car', this)">🚗 Car</button>
-    <button class="nav-btn" onclick="setMode('heli', this)">🚁 Heli</button>
-    <button class="nav-btn" onclick="setMode('person', this)">🚶 Person</button>
+  <button class="nav-btn active" onclick="setMode('plane', this)">✈️ Plane</button>
+  <button class="nav-btn" onclick="setMode('car', this)">🚗 Car</button>
+  <button class="nav-btn" onclick="setMode('heli', this)">🚁 Heli</button>
+  <button class="nav-btn" onclick="setMode('person', this)">🚶 Person</button>
 </div>
 
 <div class="main-layout">
-    <div id="simulation-container" onmousedown="start(event)">
-        <canvas id="pathCanvas"></canvas>
-        <div id="vehicle">✈️</div>
-        <div id="ui-overlay">
-            <div id="mode-title" style="font-weight: 900; color: var(--accent);">Airplane Mode</div>
-            <hr>
-            <div class="stat" style="color: var(--dist-color);">Distance: <span id="distVal">0</span> m</div>
-            <div class="stat" style="color: var(--disp-color);">Displacement: <span id="dispVal">0</span> m</div>
-            <div class="stat">Time: <span id="timeVal">0.0</span> s</div>
-            <hr>
-            <div class="stat" style="color: var(--dist-color);">Speed (Slope): <span id="speedSlope">0.0</span></div>
-            <div class="stat" style="color: var(--disp-color);">Vel (Slope): <span id="velSlope">0.0</span></div>
-            <button id="reset-btn" onclick="resetSim(event)">Clear Lab</button>
-        </div>
-    </div>
+  <div id="simulation-container">
+    <canvas id="pathCanvas"></canvas>
+    <div id="vehicle">✈️</div>
 
-    <div id="graph-container">
-        <canvas id="graphCanvas"></canvas>
+    <div id="ui-overlay">
+      <div id="mode-title" style="font-weight:900;border-bottom:1px solid #ccc;margin-bottom:5px;">Airplane Mode</div>
+      <div class="stat" style="color:var(--dist-color);">Distance: <span id="distVal">0</span> m</div>
+      <div class="stat" style="color:var(--disp-color);">Displacement: <span id="dispVal">0</span> m</div>
+      <div class="stat">Time: <span id="timeVal">0.0</span> s</div>
+      <hr>
+      <div class="stat" style="color:var(--dist-color);">Speed (Slope): <span id="speedSlope">0.0</span> m/s</div>
+      <div class="stat" style="color:var(--disp-color);">Velocity (Slope): <span id="velSlope">0.0</span> m/s</div>
+      <div style="font-size:.7rem;color:#666;margin-top:5px;">*Ghosts appear every 1.0s</div>
+      <button id="reset-btn" onclick="resetSim()">Clear Data</button>
     </div>
+  </div>
+
+  <div id="graph-container">
+    <canvas id="graphCanvas"></canvas>
+  </div>
 </div>
 
 <script>
-    const container = document.getElementById('simulation-container');
-    const pathCanvas = document.getElementById('pathCanvas');
-    const graphCanvas = document.getElementById('graphCanvas');
-    const pCtx = pathCanvas.getContext('2d');
-    const gCtx = graphCanvas.getContext('2d');
-    const vehicle = document.getElementById('vehicle');
-    
-    const modes = {
-        plane: "✈️", car: "🚗", heli: "🚁", person: "🚶"
-    };
+  const container = document.getElementById('simulation-container');
+  const pathCanvas = document.getElementById('pathCanvas');
+  const graphCanvas = document.getElementById('graphCanvas');
+  const pCtx = pathCanvas.getContext('2d');
+  const gCtx = graphCanvas.getContext('2d');
+  const vehicle = document.getElementById('vehicle');
 
-    let currentMode = 'plane';
-    let isDragging = false;
-    let path = [];
-    let stamps = [];
-    let startX, startY, curX, curY, totalDist = 0, startTime, lastStampTime = 0;
+  const modes = {
+    plane: { title:"Airplane Mode", emoji:"✈️", flipped:false },
+    car: { title:"Car Mode", emoji:"🚗", flipped:true },
+    heli: { title:"Helicopter Mode", emoji:"🚁", flipped:true },
+    person:{ title:"Person Mode", emoji:"🚶", flipped:true }
+  };
 
-    function setMode(mode, btn) {
-        currentMode = mode;
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        vehicle.innerText = modes[mode];
-        document.getElementById('mode-title').innerText = mode.toUpperCase() + " MODE";
-        resetSim();
+  let currentMode='plane';
+  let isDragging=false;
+  let path=[],stamps=[];
+  let startX,startY,curX,curY,totalDist=0,startTime,lastStampTime=0;
+
+  function setMode(mode,btn){
+    currentMode=mode;
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+
+    vehicle.innerText=modes[mode].emoji;
+    vehicle.classList.toggle('flipped',modes[mode].flipped);
+    document.getElementById('mode-title').innerText=modes[mode].title;
+    resetSim();
+  }
+
+  function resize(){
+    pathCanvas.width=container.clientWidth;
+    pathCanvas.height=container.clientHeight;
+    graphCanvas.width=document.getElementById('graph-container').clientWidth;
+    graphCanvas.height=document.getElementById('graph-container').clientHeight;
+    drawGraphStatic();
+  }
+  window.addEventListener('resize',resize);
+  resize();
+
+  container.addEventListener('mousedown',start);
+  document.addEventListener('mousemove',move);
+  document.addEventListener('mouseup',()=>isDragging=false);
+
+  function start(e){
+    const r=container.getBoundingClientRect();
+    startX=curX=e.clientX-r.left;
+    startY=curY=e.clientY-r.top;
+    totalDist=0;
+    path=[{t:0,d:0,disp:0}];
+    stamps=[];
+    isDragging=true;
+    startTime=Date.now();
+    lastStampTime=0;
+  }
+
+  function move(e){
+    if(!isDragging) return;
+    const r=container.getBoundingClientRect();
+    const nx=e.clientX-r.left, ny=e.clientY-r.top;
+    const seg=Math.hypot(nx-curX,ny-curY);
+    totalDist+=seg;
+    curX=nx; curY=ny;
+    const time=(Date.now()-startTime)/1000;
+    const disp=Math.hypot(curX-startX,curY-startY);
+    if(time-lastStampTime>=1){
+      stamps.push({x:curX,y:curY});
+      lastStampTime=time;
     }
+    path.push({t:time,d:totalDist,disp});
+    updateUI(time,totalDist,disp);
+    drawSim(); drawGraph();
+  }
 
-    function resize() {
-        pathCanvas.width = container.clientWidth;
-        pathCanvas.height = container.clientHeight;
-        graphCanvas.width = graphCanvas.parentElement.clientWidth - 20;
-        graphCanvas.height = graphCanvas.parentElement.clientHeight - 20;
-        drawGraphStatic();
-    }
-    window.onload = resize;
-    window.onresize = resize;
+  function updateUI(t,d,disp){
+    vehicle.style.left=curX+'px';
+    vehicle.style.top=curY+'px';
+    distVal.innerText=Math.round(d);
+    dispVal.innerText=Math.round(disp);
+    timeVal.innerText=t.toFixed(1);
+  }
 
-    function start(e) {
-        if (e.target.id === "reset-btn") return;
-        const rect = container.getBoundingClientRect();
-        startX = e.clientX - rect.left;
-        startY = e.clientY - rect.top;
-        curX = startX; curY = startY;
-        totalDist = 0;
-        path = [{t: 0, d: 0, disp: 0}];
-        stamps = [];
-        isDragging = true;
-        startTime = Date.now();
-        lastStampTime = 0;
-        
-        // Initial Draw
-        vehicle.style.left = curX + 'px';
-        vehicle.style.top = curY + 'px';
-    }
+  function drawSim(){
+    pCtx.clearRect(0,0,pathCanvas.width,pathCanvas.height);
+    pCtx.globalAlpha=.3;
+    pCtx.font="30px Arial";
+    stamps.forEach(s=>pCtx.fillText(modes[currentMode].emoji,s.x-15,s.y+10));
+    pCtx.globalAlpha=1;
+    pCtx.strokeStyle='#2980b9';
+    pCtx.lineWidth=3;
+    pCtx.beginPath();
+    pCtx.moveTo(startX,startY);
+    pCtx.lineTo(curX,curY);
+    pCtx.stroke();
+  }
 
-    document.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        const rect = container.getBoundingClientRect();
-        const nx = e.clientX - rect.left;
-        const ny = e.clientY - rect.top;
+  function drawGraphStatic(){
+    gCtx.clearRect(0,0,graphCanvas.width,graphCanvas.height);
+  }
 
-        // Physics Logic
-        const seg = Math.sqrt(Math.pow(nx - curX, 2) + Math.pow(ny - curY, 2));
-        totalDist += seg;
-        curX = nx; curY = ny;
+  function drawGraph(){}
 
-        const time = (Date.now() - startTime) / 1000;
-        const disp = Math.sqrt(Math.pow(curX - startX, 2) + Math.pow(curY - startY, 2));
+  function resetSim(){
+    isDragging=false;
+    pCtx.clearRect(0,0,pathCanvas.width,pathCanvas.height);
+    vehicle.style.left='50%';
+    vehicle.style.top='50%';
+  }
 
-        // Motion Diagram (Ghost) every 1 second
-        if (time - lastStampTime >= 1.0) {
-            stamps.push({x: curX, y: curY});
-            lastStampTime = time;
-        }
-
-        path.push({t: time, d: totalDist, disp: disp});
-        updateDisplay(time, totalDist, disp);
-        drawSimulation();
-        drawGraph();
-    });
-
-    document.addEventListener('mouseup', () => isDragging = false);
-
-    function updateDisplay(t, d, disp) {
-        vehicle.style.left = curX + 'px';
-        vehicle.style.top = curY + 'px';
-        document.getElementById('distVal').innerText = Math.round(d);
-        document.getElementById('dispVal').innerText = Math.round(disp);
-        document.getElementById('timeVal').innerText = t.toFixed(1);
-
-        // Slope Calculation (Last 10 points for stability)
-        if (path.length > 10) {
-            const p1 = path[path.length - 10];
-            const p2 = path[path.length - 1];
-            const dt = p2.t - p1.t;
-            if (dt > 0) {
-                document.getElementById('speedSlope').innerText = ((p2.d - p1.d) / dt / 10).toFixed(1);
-                document.getElementById('velSlope').innerText = ((p2.disp - p1.disp) / dt / 10).toFixed(1);
-            }
-        }
-    }
-
-    function drawSimulation() {
-        pCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
-        
-        // Stamps
-        pCtx.globalAlpha = 0.2;
-        pCtx.font = "30px Arial";
-        stamps.forEach(s => pCtx.fillText(modes[currentMode], s.x - 15, s.y + 10));
-        pCtx.globalAlpha = 1.0;
-
-        // Displacement line
-        pCtx.strokeStyle = '#2980b9';
-        pCtx.setLineDash([5, 5]);
-        pCtx.beginPath(); pCtx.moveTo(startX, startY); pCtx.lineTo(curX, curY); pCtx.stroke();
-        pCtx.setLineDash([]);
-
-        // Origin
-        pCtx.fillStyle = "red";
-        pCtx.beginPath(); pCtx.arc(startX, startY, 5, 0, Math.PI*2); pCtx.fill();
-    }
-
-    function drawGraphStatic() {
-        gCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
-        const m = 40;
-        gCtx.strokeStyle = "#333"; gCtx.lineWidth = 2;
-        gCtx.beginPath();
-        gCtx.moveTo(m, 10); gCtx.lineTo(m, graphCanvas.height - m); 
-        gCtx.lineTo(graphCanvas.width - 10, graphCanvas.height - m);
-        gCtx.stroke();
-        gCtx.fillStyle = "#333"; gCtx.font = "12px Arial";
-        gCtx.fillText("Pos (m)", 5, 20);
-        gCtx.fillText("Time (s)", graphCanvas.width/2, graphCanvas.height - 5);
-    }
-
-    function drawGraph() {
-        drawGraphStatic();
-        if (path.length < 2) return;
-        const m = 40;
-        const w = graphCanvas.width - m - 20;
-        const h = graphCanvas.height - m - 20;
-        const maxT = Math.max(10, path[path.length-1].t);
-        const maxD = Math.max(400, totalDist);
-
-        const getX = (t) => m + (t / maxT) * w;
-        const getY = (v) => (graphCanvas.height - m) - (v / maxD) * h;
-
-        // Distance Plot
-        gCtx.strokeStyle = "#d35400"; gCtx.beginPath();
-        gCtx.moveTo(getX(path[0].t), getY(path[0].d));
-        path.forEach(p => gCtx.lineTo(getX(p.t), getY(p.d)));
-        gCtx.stroke();
-
-        // Displacement Plot
-        gCtx.strokeStyle = "#2980b9"; gCtx.beginPath();
-        gCtx.moveTo(getX(path[0].t), getY(path[0].disp));
-        path.forEach(p => gCtx.lineTo(getX(p.t), getY(p.disp)));
-        gCtx.stroke();
-    }
-
-    function resetSim(e) {
-        if(e) e.stopPropagation();
-        pCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
-        path = []; stamps = []; totalDist = 0;
-        document.getElementById('distVal').innerText = "0";
-        document.getElementById('dispVal').innerText = "0";
-        document.getElementById('timeVal').innerText = "0.0";
-        document.getElementById('speedSlope').innerText = "0.0";
-        document.getElementById('velSlope').innerText = "0.0";
-        drawGraphStatic();
-        vehicle.style.left = '50%'; vehicle.style.top = '50%';
-    }
+  resetSim();
 </script>
 </body>
 </html>
