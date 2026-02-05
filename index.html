@@ -52,4 +52,181 @@
     <button class="nav-btn active" onclick="setMode('plane')">✈️ Plane</button>
     <button class="nav-btn" onclick="setMode('car')">🚗 Car</button>
     <button class="nav-btn" onclick="setMode('heli')">🚁 Heli</button>
-    <button class
+    <button class="nav-btn" onclick="setMode('person')">🚶 Person</button>
+</div>
+
+<div class="main-layout">
+    <div id="simulation-container">
+        <canvas id="pathCanvas"></canvas>
+        <div id="vehicle">✈️</div>
+        <div id="ui-overlay">
+            <div id="mode-title" style="font-weight: 900; border-bottom: 1px solid #ccc; margin-bottom: 5px;">Airplane Mode</div>
+            <div class="stat" style="color: var(--dist-color);">Distance: <span id="distVal">0</span> m</div>
+            <div class="stat" style="color: var(--disp-color);">Displacement: <span id="dispVal">0</span> m</div>
+            <div class="stat">Time: <span id="timeVal">0.0</span> s</div>
+            <button id="reset-btn" onclick="resetSim()">Clear Data</button>
+        </div>
+    </div>
+
+    <div id="graph-container">
+        <canvas id="graphCanvas"></canvas>
+    </div>
+</div>
+
+<script>
+    const container = document.getElementById('simulation-container');
+    const pathCanvas = document.getElementById('pathCanvas');
+    const graphCanvas = document.getElementById('graphCanvas');
+    const pCtx = pathCanvas.getContext('2d');
+    const gCtx = graphCanvas.getContext('2d');
+    const vehicle = document.getElementById('vehicle');
+    
+    const modes = {
+        plane: { title: "Airplane Mode", emoji: "✈️" },
+        car: { title: "Car Mode", emoji: "🚗" },
+        heli: { title: "Helicopter Mode", emoji: "🚁" },
+        person: { title: "Person Mode", emoji: "🚶" }
+    };
+
+    let currentMode = 'plane';
+    let isDragging = false;
+    let path = [];
+    let startX, startY, curX, curY, totalDist = 0, startTime;
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        if(window.event) window.event.target.classList.add('active');
+        vehicle.innerText = modes[mode].emoji;
+        document.getElementById('mode-title').innerText = modes[mode].title;
+        resetSim();
+    }
+
+    function resize() {
+        pathCanvas.width = container.clientWidth;
+        pathCanvas.height = container.clientHeight;
+        graphCanvas.width = document.getElementById('graph-container').clientWidth;
+        graphCanvas.height = document.getElementById('graph-container').clientHeight;
+        drawGraphStatic();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    container.addEventListener('mousedown', start);
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', () => isDragging = false);
+
+    function start(e) {
+        const rect = container.getBoundingClientRect();
+        startX = e.clientX - rect.left;
+        startY = e.clientY - rect.top;
+        curX = startX; curY = startY;
+        totalDist = 0;
+        path = [{t: 0, d: 0, disp: 0}];
+        isDragging = true;
+        startTime = Date.now();
+    }
+
+    function move(e) {
+        if (!isDragging) return;
+        const rect = container.getBoundingClientRect();
+        const nx = e.clientX - rect.left;
+        const ny = e.clientY - rect.top;
+
+        const seg = Math.sqrt(Math.pow(nx - curX, 2) + Math.pow(ny - curY, 2));
+        totalDist += seg;
+        curX = nx; curY = ny;
+
+        const time = (Date.now() - startTime) / 1000;
+        const disp = Math.sqrt(Math.pow(curX - startX, 2) + Math.pow(curY - startY, 2));
+
+        path.push({t: time, d: totalDist, disp: disp});
+        updateUI(time, totalDist, disp);
+        drawSim();
+        drawGraph();
+    }
+
+    function updateUI(t, d, disp) {
+        vehicle.style.left = curX + 'px';
+        vehicle.style.top = curY + 'px';
+        document.getElementById('distVal').innerText = Math.round(d);
+        document.getElementById('dispVal').innerText = Math.round(disp);
+        document.getElementById('timeVal').innerText = t.toFixed(1);
+    }
+
+    function drawSim() {
+        pCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
+        // Origin Point (0,0)
+        pCtx.fillStyle = "red";
+        pCtx.beginPath(); pCtx.arc(startX, startY, 6, 0, Math.PI*2); pCtx.fill();
+        pCtx.fillStyle = "black";
+        pCtx.fillText("(Origin)", startX + 10, startY - 10);
+
+        // Displacement line (Blue)
+        pCtx.strokeStyle = '#2980b9'; pCtx.lineWidth = 4;
+        pCtx.beginPath(); pCtx.moveTo(startX, startY); pCtx.lineTo(curX, curY); pCtx.stroke();
+    }
+
+    function drawGraphStatic() {
+        gCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+        const margin = 50;
+        gCtx.strokeStyle = "#333"; gCtx.lineWidth = 2;
+        // Y Axis
+        gCtx.beginPath();
+        gCtx.moveTo(margin, 20); gCtx.lineTo(margin, graphCanvas.height - margin); 
+        // X Axis
+        gCtx.lineTo(graphCanvas.width - 20, graphCanvas.height - margin);
+        gCtx.stroke();
+        
+        // Labels
+        gCtx.fillStyle = "#333"; gCtx.font = "bold 13px sans-serif";
+        gCtx.save();
+        gCtx.translate(15, graphCanvas.height / 2);
+        gCtx.rotate(-Math.PI / 2);
+        gCtx.fillText("Position (meters)", 0, 0);
+        gCtx.restore();
+        gCtx.fillText("Time (seconds)", graphCanvas.width / 2, graphCanvas.height - 10);
+    }
+
+    function drawGraph() {
+        drawGraphStatic();
+        if (path.length < 2) return;
+        const margin = 50;
+        const plotW = graphCanvas.width - margin - 40;
+        const plotH = graphCanvas.height - margin - 40;
+
+        const maxT = Math.max(10, path[path.length-1].t);
+        const maxD = Math.max(500, totalDist);
+
+        const getX = (t) => margin + (t / maxT) * plotW;
+        const getY = (v) => (graphCanvas.height - margin) - (v / maxD) * plotH;
+
+        // Draw Distance (Orange)
+        gCtx.strokeStyle = "#d35400"; gCtx.lineWidth = 2;
+        gCtx.beginPath(); gCtx.moveTo(getX(path[0].t), getY(path[0].d));
+        path.forEach(p => gCtx.lineTo(getX(p.t), getY(p.d)));
+        gCtx.stroke();
+
+        // Draw Displacement (Blue)
+        gCtx.strokeStyle = "#2980b9"; gCtx.lineWidth = 2;
+        gCtx.beginPath(); gCtx.moveTo(getX(path[0].t), getY(path[0].disp));
+        path.forEach(p => gCtx.lineTo(getX(p.t), getY(p.disp)));
+        gCtx.stroke();
+        
+        // Legend
+        gCtx.fillStyle = "#d35400"; gCtx.fillText("Distance", margin + 20, 35);
+        gCtx.fillStyle = "#2980b9"; gCtx.fillText("Displacement", margin + 120, 35);
+    }
+
+    function resetSim() {
+        pCtx.clearRect(0, 0, pathCanvas.width, pathCanvas.height);
+        path = []; totalDist = 0;
+        document.getElementById('distVal').innerText = "0";
+        document.getElementById('dispVal').innerText = "0";
+        document.getElementById('timeVal').innerText = "0.0";
+        drawGraphStatic();
+        vehicle.style.left = '50%'; vehicle.style.top = '50%';
+    }
+</script>
+</body>
+</html>
