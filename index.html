@@ -3,349 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ohio Science PS.FM.1 Simulation</title>
+    <title>Physics Sim: Car vs. Plane</title>
     <style>
-        /* Basic Page Setup */
-        body { 
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-            background-color: #2c3e50; 
-            text-align: center; 
-            margin: 0; 
-            overflow: hidden; 
-            color: #ecf0f1;
-        }
-        #header { 
-            background: #1a252f; 
-            padding: 15px; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-        h2 { margin: 0 0 10px 0; }
-        p { margin: 0; color: #bdc3c7; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #2c3e50; text-align: center; margin: 0; color: white; }
+        
+        /* Navigation Menu */
+        #nav { background: #1a252f; padding: 15px; display: flex; justify-content: center; gap: 20px; }
+        .nav-btn { padding: 10px 20px; cursor: pointer; border: 2px solid #3498db; background: transparent; color: white; border-radius: 5px; font-weight: bold; }
+        .nav-btn.active { background: #3498db; }
 
-        /* The Main Simulation Box */
         #simulation-container { 
-            position: relative; 
-            width: 90vw; 
-            height: 65vh; 
-            margin: 20px auto; 
-            /* BACKGROUND IMAGE ADDED HERE */
-            background-image: url('https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2074&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
-            background-size: cover; /* Ensures the map fills the container */
-            background-position: center; /* Centers the map view */
-            background-repeat: no-repeat;
-            border: 4px solid #ecf0f1; 
-            border-radius: 12px; 
-            cursor: crosshair; /* Changes cursor to look like a target */
-            overflow: hidden; 
-            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            position: relative; width: 90vw; height: 60vh; margin: 20px auto; 
+            border: 4px solid white; border-radius: 12px; overflow: hidden;
+            background-size: cover; background-position: center;
         }
 
-        /* Canvas and Helicopter Layers */
         canvas { position: absolute; top: 0; left: 0; z-index: 5; }
-        #heli { 
-            position: absolute; 
-            font-size: 50px; 
-            transform: translate(-50%, -50%); 
-            pointer-events: none; /* Lets clicks pass through the emoji to the canvas below */
-            z-index: 10; 
-            filter: drop-shadow(3px 3px 3px rgba(0,0,0,0.5)); /* Gives the heli depth */
-        }
+        #vehicle { position: absolute; font-size: 50px; transform: translate(-50%, -50%); pointer-events: none; z-index: 10; }
 
-        /* The Statistics Floating Box */
         #ui-overlay { 
-            position: absolute; 
-            top: 15px; 
-            left: 15px; 
-            /* Semi-transparent white box so text is readable over map */
-            background: rgba(255, 255, 255, 0.9); 
-            padding: 15px; 
-            border-radius: 8px; 
-            text-align: left; 
-            border: 1px solid #bdc3c7; 
-            pointer-events: none; 
-            min-width: 240px; 
-            color: #2c3e50;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            z-index: 20;
+            position: absolute; top: 15px; left: 15px; background: rgba(255, 255, 255, 0.9); 
+            padding: 15px; border-radius: 8px; text-align: left; color: #2c3e50; z-index: 20; min-width: 200px;
         }
-        .stat-group { margin-bottom: 10px; }
-        .stat-label { font-size: 0.9rem; font-weight: bold; display: block;}
-        .stat-value { font-size: 1.2rem; font-family: 'Courier New', monospace;}
-
-        /* Colors matching the drawn lines */
-        .txt-dist { color: #d35400; } /* Orange */
-        .txt-disp { color: #2980b9; } /* Blue */
-        .txt-vel { color: #27ae60; }  /* Green */
-        .txt-time { color: #7f8c8d; } /* Grey */
-
-        /* Button Styling */
-        #controls { margin-top: 15px; }
-        button { 
-            padding: 12px 24px; 
-            font-size: 1.1rem; 
-            background: #e74c3c; 
-            color: white; 
-            border: none; 
-            border-radius: 6px; 
-            cursor: pointer; 
-            transition: background 0.2s;
-            box-shadow: 0 4px #c0392b;
-        }
-        button:hover { background: #ff5e4d; }
-        button:active { box-shadow: 0 2px #c0392b; transform: translateY(2px);}
+        .stat { margin-bottom: 5px; font-weight: bold; }
+        #reset-btn { margin-top: 10px; padding: 10px 20px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div id="header">
-    <h2>Ohio Standard PS.FM.1: Motion Simulator</h2>
-    <p>Mission: Click and drag the helicopter across the map. Compare your path taken vs. your net change in position.</p>
+<div id="nav">
+    <button class="nav-btn active" onclick="setMode('plane')">✈️ Airplane Mode</button>
+    <button class="nav-btn" onclick="setMode('car')">🚗 Car Mode</button>
 </div>
 
-<div id="simulation-container">
+<div id="simulation-container" id="simBox">
     <canvas id="pathCanvas"></canvas>
-    <div id="heli">🚁</div>
+    <div id="vehicle">✈️</div>
     
     <div id="ui-overlay">
-        <div class="stat-group txt-dist">
-            <span class="stat-label">Total Distance (Scalar):</span>
-            <span class="stat-value"><span id="distVal">0</span> meters</span>
-        </div>
-        <div class="stat-group txt-disp">
-            <span class="stat-label">Displacement (Vector):</span>
-            <span class="stat-value"><span id="dispVal">0</span> meters</span>
-        </div>
-        <hr style="border: 1px solid #ddd;">
-        <div class="stat-group txt-vel">
-            <span class="stat-label">Avg Speed:</span>
-            <span class="stat-value"><span id="speedVal">0.0</span> m/s</span>
-        </div>
-        <div class="stat-group txt-vel" style="color:#8e44ad">
-            <span class="stat-label">Avg Velocity:</span>
-            <span class="stat-value"><span id="velVal">0.0</span> m/s</span>
-        </div>
-        <div class="stat-group txt-time">
-            <span class="stat-label">Flight Time:</span>
-            <span class="stat-value"><span id="timeVal">0.0</span> s</span>
-        </div>
-        <small style="display:block; margin-top:5px; color:#555">Orange = Path | Blue = Vector</small>
+        <div id="mode-title" style="font-size: 1.2rem; border-bottom: 2px solid #ccc; margin-bottom: 10px;">Airplane Mission</div>
+        <div class="stat" style="color: #d35400;">Distance: <span id="distVal">0</span> m</div>
+        <div class="stat" style="color: #2980b9;">Displacement: <span id="dispVal">0</span> m</div>
+        <div class="stat">Time: <span id="timeVal">0.0</span> s</div>
+        <div class="stat" id="speedStat">Avg Speed: 0 m/s</div>
+        <button id="reset-btn" onclick="resetSim()">Reset Data</button>
     </div>
 </div>
 
-<div id="controls">
-    <button onclick="resetSim()">Reset Mission</button>
-</div>
-
 <script>
-    // --- Setup ---
     const container = document.getElementById('simulation-container');
     const canvas = document.getElementById('pathCanvas');
     const ctx = canvas.getContext('2d');
-    const heli = document.getElementById('heli');
+    const vehicle = document.getElementById('vehicle');
     
-    // UI Elements references
-    const distValUI = document.getElementById('distVal');
-    const dispValUI = document.getElementById('dispVal');
-    const speedValUI = document.getElementById('speedVal');
-    const velValUI = document.getElementById('velVal');
-    const timeValUI = document.getElementById('timeVal');
+    // Modes Data
+    const modes = {
+        plane: {
+            title: "Airplane Mission",
+            emoji: "✈️",
+            bg: "url('https://images.unsplash.com/photo-1506012733851-bb9215d3974d?q=80&w=2074&auto=format&fit=crop')",
+            desc: "Fly freely! Displacement is the straight-line vector."
+        },
+        car: {
+            title: "Car Mission",
+            emoji: "🚗",
+            bg: "url('https://images.unsplash.com/photo-1526649661456-89c7ed4d00b8?q=80&w=2000&auto=format&fit=crop')",
+            desc: "Follow the roads! Notice how distance grows faster than displacement."
+        }
+    };
 
-    // Physics Variables
-    let startX, startY, currentX, currentY;
-    let totalDistance = 0;
+    let currentMode = 'plane';
     let isDragging = false;
-    let pathHistory = [];
-    let startTime = null;
-    let elapsedTime = 0;
-    let animationFrameId = null;
+    let path = [];
+    let startX, startY, curX, curY, distance = 0, startTime;
 
-    // --- Helper Functions ---
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        container.style.backgroundImage = modes[mode].bg;
+        vehicle.innerText = modes[mode].emoji;
+        document.getElementById('mode-title').innerText = modes[mode].title;
+        resetSim();
+    }
 
-    // Ensure canvas resolution matches CSS size so drawing isn't blurry
-    function resizeCanvas() {
+    // Initialize Plane Mode
+    setMode('plane');
+
+    function resize() {
         canvas.width = container.clientWidth;
         canvas.height = container.clientHeight;
-        if(pathHistory.length > 0) draw(); // Redraw if resized during flight
     }
-    window.addEventListener('resize', resizeCanvas);
-    // Call once on load
-    resizeCanvas();
-    // Center heli initially
-    heli.style.left = (container.clientWidth / 2) + 'px';
-    heli.style.top = (container.clientHeight / 2) + 'px';
+    window.addEventListener('resize', resize);
+    resize();
 
-
-    // --- Event Listeners for Interaction ---
-
-    container.addEventListener('mousedown', startFlight);
-    // Use document for mousemove/up so it doesn't break if mouse leaves the box while dragging
-    document.addEventListener('mousemove', flying); 
-    document.addEventListener('mouseup', endFlight);
-    
-    // Touch support for tablets/phones
-    container.addEventListener('touchstart', (e) => { e.preventDefault(); startFlight(e.touches[0]); }, {passive: false});
-    document.addEventListener('touchmove', (e) => {  if(isDragging) { e.preventDefault(); flying(e.touches[0]); }}, {passive: false});
-    document.addEventListener('touchend', endFlight);
-
-
-    // --- Core Logic ---
-
-    function startFlight(e) {
-        // Get click coordinates relative to the container box
+    container.addEventListener('mousedown', (e) => {
         const rect = container.getBoundingClientRect();
         startX = e.clientX - rect.left;
         startY = e.clientY - rect.top;
-        currentX = startX;
-        currentY = startY;
-        
-        // Reset run variables
-        totalDistance = 0;
-        pathHistory = [{x: startX, y: startY}];
+        curX = startX; curY = startY;
+        path = [{x: startX, y: startY}];
+        distance = 0;
         isDragging = true;
         startTime = Date.now();
-        elapsedTime = 0;
+    });
 
-        // Start the animation loop
-        if (animationFrameId) cancelAnimationFrame(animationFrameId);
-        gameLoop();
-    }
-
-    function flying(e) {
+    document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
         const rect = container.getBoundingClientRect();
-        // Ensure coordinates stay within bounds (optional but looks cleaner)
-        let newX = Math.max(0, Math.min(container.clientWidth, e.clientX - rect.left));
-        let newY = Math.max(0, Math.min(container.clientHeight, e.clientY - rect.top));
+        const nx = e.clientX - rect.left;
+        const ny = e.clientY - rect.top;
 
-        // Calculate small segment distance using Pythagorean theorem
-        const dx = newX - currentX;
-        const dy = newY - currentY;
-        // Add segment to total scalar distance
-        totalDistance += Math.sqrt(dx * dx + dy * dy);
+        const dx = nx - curX;
+        const dy = ny - curY;
+        distance += Math.sqrt(dx*dx + dy*dy);
+        
+        curX = nx; curY = ny;
+        path.push({x: curX, y: curY});
+        update();
+    });
 
-        // Update position
-        currentX = newX;
-        currentY = newY;
-        pathHistory.push({x: currentX, y: currentY});
-    }
+    document.addEventListener('mouseup', () => isDragging = false);
 
-    function endFlight() {
-        isDragging = false;
-        if (animationFrameId) cancelAnimationFrame(animationFrameId);
-    }
+    function update() {
+        vehicle.style.left = curX + 'px';
+        vehicle.style.top = curY + 'px';
 
-    // The main loop that runs constantly while dragging
-    function gameLoop() {
-        if (!isDragging) return;
+        const disp = Math.sqrt(Math.pow(curX - startX, 2) + Math.pow(curY - startY, 2));
+        const time = (Date.now() - startTime) / 1000;
 
-        elapsedTime = (Date.now() - startTime) / 1000; // Convert ms to seconds
-        updateCalculationsAndUI();
+        document.getElementById('distVal').innerText = Math.round(distance);
+        document.getElementById('dispVal').innerText = Math.round(disp);
+        document.getElementById('timeVal').innerText = time.toFixed(1);
+        document.getElementById('speedStat').innerText = "Avg Speed: " + (distance/time).toFixed(1) + " m/s";
+
         draw();
-        // Request next frame
-        animationFrameId = requestAnimationFrame(gameLoop);
     }
-
-
-    function updateCalculationsAndUI() {
-        // Move the emoji
-        heli.style.left = currentX + 'px';
-        heli.style.top = currentY + 'px';
-
-        // --- Physics Calculations ---
-        
-        // Displacement (Vector Magnitude): straight line from start to current
-        const dispX = currentX - startX;
-        const dispY = currentY - startY;
-        const displacementMag = Math.sqrt(dispX * dispX + dispY * dispY);
-
-        // Prevent divide by zero at the very start
-        let avgSpeed = 0;
-        let avgVelocityMag = 0;
-        
-        if (elapsedTime > 0.05) { // Wait a tiny bit before calculating rates to avoid spikes
-             avgSpeed = totalDistance / elapsedTime;
-             avgVelocityMag = displacementMag / elapsedTime;
-        }
-
-        // Update Text UI
-        distValUI.innerText = Math.round(totalDistance);
-        dispValUI.innerText = Math.round(displacementMag);
-        speedValUI.innerText = avgSpeed.toFixed(1);
-        velValUI.innerText = avgVelocityMag.toFixed(1);
-        timeValUI.innerText = elapsedTime.toFixed(1);
-    }
-
-    // --- Drawing Functions ---
 
     function draw() {
-        // Clear previous frame
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // 1. Draw Path (Distance) - Orange dashed line
-        if(pathHistory.length > 0) {
-            ctx.beginPath();
-            ctx.setLineDash([8, 6]); // Dashed pattern
-            ctx.strokeStyle = 'rgba(211, 84, 0, 0.7)'; // Orange with some transparency
-            ctx.lineWidth = 4;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.moveTo(pathHistory[0].x, pathHistory[0].y);
-            for(let i = 1; i < pathHistory.length; i++) {
-                ctx.lineTo(pathHistory[i].x, pathHistory[i].y);
-            }
-            ctx.stroke();
-        }
-
-        // 2. Draw Displacement Vector - Solid Blue Arrow
-        if (pathHistory.length > 1) {
-            ctx.setLineDash([]); // Solid line
-            ctx.strokeStyle = '#2980b9';
-            ctx.lineWidth = 5;
-            // Draw a dot at the start point
-            ctx.beginPath();
-            ctx.fillStyle = '#2980b9';
-            ctx.arc(startX, startY, 5, 0, Math.PI * 2);
-            ctx.fill();
-            // Draw the arrow
-            drawArrow(startX, startY, currentX, currentY);
-        }
-    }
-
-    function drawArrow(fx, fy, tx, ty) {
-        const headlen = 20; // Length of arrow head in pixels
-        const angle = Math.atan2(ty - fy, tx - fx);
         
-        // Line part
+        // Path
         ctx.beginPath();
-        ctx.moveTo(fx, fy);
-        ctx.lineTo(tx, ty);
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = '#d35400';
+        ctx.lineWidth = 3;
+        ctx.moveTo(path[0].x, path[0].y);
+        for(let p of path) ctx.lineTo(p.x, p.y);
         ctx.stroke();
-        
-        // Pointy triangle part
+
+        // Displacement Vector
+        ctx.setLineDash([]);
+        ctx.strokeStyle = '#2980b9';
+        ctx.lineWidth = 4;
+        const headlen = 15;
+        const angle = Math.atan2(curY - startY, curX - startX);
         ctx.beginPath();
-        ctx.moveTo(tx, ty);
-        ctx.lineTo(tx - headlen * Math.cos(angle - Math.PI / 6), ty - headlen * Math.sin(angle - Math.PI / 6));
-        ctx.lineTo(tx - headlen * Math.cos(angle + Math.PI / 6), ty - headlen * Math.sin(angle + Math.PI / 6));
-        ctx.closePath();
-        ctx.fillStyle = '#2980b9';
-        ctx.fill();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(curX, curY);
+        ctx.stroke();
     }
 
     function resetSim() {
-        endFlight();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        pathHistory = [];
-        totalDistance = 0;
-        elapsedTime = 0;
-        // Reset UI text back to zero
-        distValUI.innerText = '0';
-        dispValUI.innerText = '0';
-        speedValUI.innerText = '0.0';
-        velValUI.innerText = '0.0';
-        timeValUI.innerText = '0.0';
-        // Center heli again
-        heli.style.left = '50%';
-        heli.style.top = '50%';
+        path = [];
+        distance = 0;
+        document.getElementById('distVal').innerText = "0";
+        document.getElementById('dispVal').innerText = "0";
+        document.getElementById('timeVal').innerText = "0.0";
     }
 </script>
 </body>
