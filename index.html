@@ -3,42 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Distance vs. Displacement Sim</title>
+    <title>Distance, Displacement & Velocity Sim</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f8ff; text-align: center; margin: 0; overflow: hidden; }
-        #header { background: #2c3e50; color: white; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        #simulation-container { position: relative; width: 90vw; height: 70vh; margin: 20px auto; background: white; border: 3px solid #34495e; border-radius: 10px; cursor: crosshair; overflow: hidden; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; text-align: center; margin: 0; overflow: hidden; }
+        #header { background: #34495e; color: white; padding: 10px; }
+        #simulation-container { position: relative; width: 95vw; height: 65vh; margin: 15px auto; background: white; border: 2px solid #2c3e50; border-radius: 8px; cursor: crosshair; overflow: hidden; }
         canvas { position: absolute; top: 0; left: 0; }
-        #ui-overlay { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.9); padding: 15px; border-radius: 8px; text-align: left; pointer-events: none; border: 1px solid #ccc; }
-        .stat { font-size: 1.2rem; font-weight: bold; margin-bottom: 5px; }
-        .dist { color: #e67e22; } /* Orange for path */
-        .disp { color: #2980b9; } /* Blue for vector */
-        #controls { margin-bottom: 20px; }
-        button { padding: 10px 20px; font-size: 1rem; cursor: pointer; background: #27ae60; color: white; border: none; border-radius: 5px; transition: 0.3s; }
-        button:hover { background: #2ecc71; }
-        #heli { position: absolute; font-size: 40px; transform: translate(-50%, -50%); pointer-events: none; z-index: 10; transition: transform 0.1s; }
+        #ui-overlay { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.95); padding: 12px; border-radius: 5px; text-align: left; border: 1px solid #bdc3c7; pointer-events: none; min-width: 220px; }
+        .stat { font-size: 1rem; margin-bottom: 4px; }
+        .dist { color: #d35400; } 
+        .disp { color: #2980b9; }
+        .vel { color: #27ae60; font-weight: bold; }
+        #heli { position: absolute; font-size: 45px; transform: translate(-50%, -50%); pointer-events: none; z-index: 10; }
+        #controls { margin-top: 10px; }
+        button { padding: 12px 24px; font-size: 1rem; background: #2980b9; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #3498db; }
     </style>
 </head>
 <body>
 
 <div id="header">
-    <h1>Physics Sim: Distance vs. Displacement</h1>
-    <p>Standard PS.FM.1: Drag the helicopter to see the difference!</p>
+    <h2>Flight Sim: Motion & Vectors</h2>
+    <p>Standard PS.FM.1: Click and drag to fly. Watch how Velocity vs. Speed changes!</p>
 </div>
 
-<div id="simulation-container" id="simBox">
+<div id="simulation-container">
     <canvas id="pathCanvas"></canvas>
     <div id="heli">🚁</div>
     <div id="ui-overlay">
-        <div class="stat dist">Distance (Scalar): <span id="distVal">0</span> m</div>
-        <div class="stat disp">Displacement (Vector): <span id="dispVal">0</span> m</div>
+        <div class="stat dist">Total Distance: <span id="distVal">0</span> m</div>
+        <div class="stat disp">Displacement: <span id="dispVal">0</span> m</div>
         <hr>
-        <small>Orange line = Path taken<br>Blue arrow = Net change</small>
+        <div class="stat vel">Avg Speed (Scalar): <span id="speedVal">0</span> m/s</div>
+        <div class="stat vel" style="color:#8e44ad">Avg Velocity (Vector): <span id="velVal">0</span> m/s</div>
+        <div class="stat" style="color: #7f8c8d">Time: <span id="timeVal">0.0</span> s</div>
     </div>
 </div>
 
 <div id="controls">
-    <button onclick="resetSim()">Reset Flight</button>
+    <button onclick="resetSim()">Clear Flight Path</button>
 </div>
 
 <script>
@@ -46,15 +49,21 @@
     const canvas = document.getElementById('pathCanvas');
     const ctx = canvas.getContext('2d');
     const heli = document.getElementById('heli');
+    
+    // UI Elements
     const distText = document.getElementById('distVal');
     const dispText = document.getElementById('dispVal');
+    const speedText = document.getElementById('speedVal');
+    const velText = document.getElementById('velVal');
+    const timeText = document.getElementById('timeVal');
 
     let startX, startY, currentX, currentY;
     let distance = 0;
     let isDragging = false;
     let path = [];
+    let startTime = null;
+    let elapsedTime = 0;
 
-    // Resize canvas to fit container
     function resize() {
         canvas.width = container.clientWidth;
         canvas.height = container.clientHeight;
@@ -62,32 +71,26 @@
     window.addEventListener('resize', resize);
     resize();
 
-    container.addEventListener('mousedown', startFlight);
-    container.addEventListener('mousemove', flying);
-    window.addEventListener('mouseup', endFlight);
-
-    function startFlight(e) {
+    container.addEventListener('mousedown', (e) => {
         const rect = container.getBoundingClientRect();
         startX = e.clientX - rect.left;
         startY = e.clientY - rect.top;
         currentX = startX;
         currentY = startY;
         
-        path = [{x: startX, y: startY}];
         distance = 0;
+        path = [{x: startX, y: startY}];
         isDragging = true;
-        
-        updateHeli(startX, startY);
-        draw();
-    }
+        startTime = Date.now();
+        elapsedTime = 0;
+    });
 
-    function flying(e) {
+    container.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
         const rect = container.getBoundingClientRect();
         const newX = e.clientX - rect.left;
         const newY = e.clientY - rect.top;
 
-        // Calculate incremental distance
         const dx = newX - currentX;
         const dy = newY - currentY;
         distance += Math.sqrt(dx * dx + dy * dy);
@@ -95,68 +98,65 @@
         currentX = newX;
         currentY = newY;
         path.push({x: currentX, y: currentY});
-
-        updateHeli(currentX, currentY);
-        calculateDisplacement();
-        draw();
-    }
-
-    function endFlight() {
-        isDragging = false;
-    }
-
-    function updateHeli(x, y) {
-        heli.style.left = x + 'px';
-        heli.style.top = y + 'px';
-    }
-
-    function calculateDisplacement() {
-        const dx = currentX - startX;
-        const dy = currentY - startY;
-        const displacement = Math.sqrt(dx * dx + dy * dy);
         
+        elapsedTime = (Date.now() - startTime) / 1000; // in seconds
+
+        updateUI();
+        draw();
+    });
+
+    window.addEventListener('mouseup', () => { isDragging = false; });
+
+    function updateUI() {
+        heli.style.left = currentX + 'px';
+        heli.style.top = currentY + 'px';
+
+        // Displacement calculation
+        const dispX = currentX - startX;
+        const dispY = currentY - startY;
+        const displacement = Math.sqrt(dispX * dispX + dispY * dispY);
+
+        // Velocity & Speed (v = d/t)
+        const avgSpeed = elapsedTime > 0 ? (distance / elapsedTime) : 0;
+        const avgVelocity = elapsedTime > 0 ? (displacement / elapsedTime) : 0;
+
         distText.innerText = Math.round(distance);
         dispText.innerText = Math.round(displacement);
+        speedText.innerText = avgSpeed.toFixed(1);
+        velText.innerText = avgVelocity.toFixed(1);
+        timeText.innerText = elapsedTime.toFixed(1);
     }
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw Distance Path (Orange)
+        // Path (Distance)
         ctx.beginPath();
         ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = '#e67e22';
+        ctx.strokeStyle = '#d35400';
         ctx.lineWidth = 2;
-        if(path.length > 0) ctx.moveTo(path[0].x, path[0].y);
-        for(let i=1; i<path.length; i++) {
-            ctx.lineTo(path[i].x, path[i].y);
-        }
+        ctx.moveTo(path[0].x, path[0].y);
+        for(let p of path) ctx.lineTo(p.x, p.y);
         ctx.stroke();
 
-        // Draw Displacement Vector (Blue Arrow)
-        if (path.length > 1) {
-            ctx.setLineDash([]);
-            ctx.strokeStyle = '#2980b9';
-            ctx.lineWidth = 4;
-            drawArrow(startX, startY, currentX, currentY);
-        }
+        // Vector (Displacement)
+        ctx.setLineDash([]);
+        ctx.strokeStyle = '#2980b9';
+        ctx.lineWidth = 3;
+        drawArrow(startX, startY, currentX, currentY);
     }
 
-    function drawArrow(fromx, fromy, tox, toy) {
-        const headlen = 15;
-        const dx = tox - fromx;
-        const dy = toy - fromy;
-        const angle = Math.atan2(dy, dx);
+    function drawArrow(fx, fy, tx, ty) {
+        const headlen = 10;
+        const angle = Math.atan2(ty - fy, tx - fx);
         ctx.beginPath();
-        ctx.moveTo(fromx, fromy);
-        ctx.lineTo(tox, toy);
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(tx, ty);
         ctx.stroke();
-        
         ctx.beginPath();
-        ctx.moveTo(tox, toy);
-        ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
-        ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
-        ctx.closePath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx - headlen * Math.cos(angle - Math.PI / 6), ty - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(tx - headlen * Math.cos(angle + Math.PI / 6), ty - headlen * Math.sin(angle + Math.PI / 6));
         ctx.fillStyle = '#2980b9';
         ctx.fill();
     }
@@ -165,12 +165,11 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         path = [];
         distance = 0;
-        distText.innerText = '0';
-        dispText.innerText = '0';
+        elapsedTime = 0;
+        updateUI();
         heli.style.left = '50%';
         heli.style.top = '50%';
     }
 </script>
-
 </body>
 </html>
